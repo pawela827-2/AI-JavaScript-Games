@@ -15,6 +15,10 @@ startScreen.style.left = '50%';
 startScreen.style.transform = 'translate(-50%, -50%)';
 document.body.appendChild(startScreen);
 
+// Save position of the start screen
+localStorage.setItem('startScreenLeft', startScreen.style.left);
+localStorage.setItem('startScreenTop', startScreen.style.top);
+
 // Title text above the button
 const titleText = document.createElement('div');
 titleText.style.position = 'absolute';
@@ -45,7 +49,7 @@ footerTextStartScreen.style.left = '50%';
 footerTextStartScreen.style.transform = 'translateX(-50%)';
 footerTextStartScreen.style.fontSize = '10px';
 footerTextStartScreen.style.color = 'gray';
-footerTextStartScreen.textContent = 'Made by pawela827, Version 0.1';
+footerTextStartScreen.textContent = 'Made by pawela827';
 startScreen.appendChild(footerTextStartScreen);
 
 // Create game container (initially hidden)
@@ -111,9 +115,9 @@ const pointsDisplay = document.createElement('div');
 pointsDisplay.style.position = 'absolute';
 pointsDisplay.style.top = '10px'; // Position at the top
 pointsDisplay.style.right = '10px'; // Position at the right
-pointsDisplay.style.fontSize = '20px';
+pointsDisplay.style.fontSize = '14px';
 pointsDisplay.style.color = 'black';
-pointsDisplay.textContent = "Points: 0";
+pointsDisplay.textContent = 'HI ${highestPoints} 0';
 gameContainer.appendChild(pointsDisplay);
 
 // Gray text at the bottom of the game screen (adjusted)
@@ -124,7 +128,7 @@ footerTextGameScreen.style.left = '50%';
 footerTextGameScreen.style.transform = 'translateX(-50%)';
 footerTextGameScreen.style.fontSize = '10px';
 footerTextGameScreen.style.color = 'gray';
-footerTextGameScreen.textContent = 'Made by pawela827, Version 0.1';
+footerTextGameScreen.textContent = 'Made by pawela827';
 gameContainer.appendChild(footerTextGameScreen);
 
 // Game variables
@@ -134,6 +138,7 @@ let gameOver = false; // Game over flag
 let cactusArray = []; // Array to store cacti
 let speed = 5; // Speed of cactus movement
 let points = 0; // Points counter
+let highestPoints = localStorage.getItem('highestPoints') ? parseInt(localStorage.getItem('highestPoints')) : 0;
 let lastCactusCrossed = -1; // Variable to track last cactus passed (to avoid double points)
 const maxJumpHeight = 100; // Max jump height of the cube
 
@@ -151,6 +156,9 @@ function dragMove(event) {
     if (isDragging) {
         startScreen.style.left = `${event.clientX - offsetX}px`;
         startScreen.style.top = `${event.clientY - offsetY}px`;
+		// Save position of the start screen
+		localStorage.setItem('startScreenLeft', startScreen.style.left);
+		localStorage.setItem('startScreenTop', startScreen.style.top);
     }
 }
 
@@ -185,7 +193,8 @@ function createCactus() {
     // Adjust cactus height based on the current cube's position
     const adjustedCactusHeight = Math.min(cactusHeight, maxJumpHeight - cubePosition);
 
-    const cactusWidth = Math.random() * 20 + 10; // Slimmer width between 10 and 30px
+    // Make the width of the cactus larger for shorter cacti and smaller for taller ones
+    const cactusWidth = (1 - (adjustedCactusHeight / maxJumpHeight)) * 30 + 10; // Width range between 10 and 40px
 
     const cactus = document.createElement('div');
     cactus.style.position = 'absolute';
@@ -214,7 +223,12 @@ function moveCacti() {
 
         // Check for collision with the cube
         if (parseInt(cactus.style.left) < 50 + cube.offsetWidth && parseInt(cactus.style.left) + cactus.offsetWidth > 50 && cubePosition <= 20) {
-            gameOver = true;
+            if (points > highestPoints) {
+                highestPoints = points;
+                localStorage.setItem('highestPoints', highestPoints);
+            }
+			stopPointIncrement();
+			gameOver = true;
             gameOverMessage.style.display = 'block'; // Show game over message
         }
     });
@@ -225,8 +239,7 @@ function checkPassedCactus() {
     cactusArray.forEach((cactus, index) => {
         // If the cactus has moved past the cube and was not previously counted, add points
         if (parseInt(cactus.style.left) < 50 && !cactus.hasPassed) {
-            points++; // Increment points when cube crosses cactus
-            pointsDisplay.textContent = `Points: ${points}`;
+            pointsDisplay.textContent = `HI ${highestPoints} ${points}`;
             cactus.hasPassed = true; // Mark cactus as passed
         }
     });
@@ -248,9 +261,20 @@ function startGame() {
     startScreen.style.display = 'none'; // Hide start screen
     gameContainer.style.display = 'block'; // Show game screen
     
+    // Load saved position if available and apply to both startScreen and gameContainer
+    const savedLeft = localStorage.getItem('startScreenLeft');
+    const savedTop = localStorage.getItem('startScreenTop');
+	
+	if (savedLeft && savedTop) {
+        startScreen.style.left = savedLeft;
+        startScreen.style.top = savedTop;
+        gameContainer.style.left = savedLeft;  // Apply the same position to the game container
+        gameContainer.style.top = savedTop;   // Apply the same position to the game container
+    }
+	
     // Reset points when the game starts
     points = 0; 
-    pointsDisplay.textContent = "Points: 0"; // Reset points display
+    pointsDisplay.textContent = "HI ${highestPoints} ${points}"; // Reset points display
 
     // Restart the game (reset any previous cacti or game-over state)
     restartGame(); // Call the restartGame function to reset all necessary variables
@@ -291,13 +315,30 @@ function restartGame() {
     cube.style.bottom = cubePosition + 'px';
     speed = 5;
     points = 0; // Reset points
-    pointsDisplay.textContent = "Points: 0"; // Reset points display
+    pointsDisplay.textContent = `HI ${highestPoints} 0`; // Reset points display
     lastCactusCrossed = -1; // Reset last crossed cactus index
     cactusArray.forEach(cactus => cactus.remove()); // Remove all cacti
     cactusArray = []; // Reset cactus array
 
+    // Start point increment
+    startPointIncrement();
+
     // Start the game loop
     gameLoop(); // This starts the game loop once, and continues until the game ends
+}
+
+let pointsInterval;
+function startPointIncrement() {
+    pointsInterval = setInterval(() => {
+        if (!gameOver) {
+            points += 10; // Increase points by 10 every second
+            pointsDisplay.textContent = `HI ${highestPoints} ${points}`;
+        }
+    }, 1000); // 1000 milliseconds = 1 second
+}
+
+function stopPointIncrement() {
+    clearInterval(pointsInterval); // Stop the point increment when game is over
 }
 
 // Add click event for starting the game
